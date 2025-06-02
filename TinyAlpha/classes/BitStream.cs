@@ -1,10 +1,18 @@
-using System.IO;
-using System.Runtime.InteropServices;
-
-class BitStream
+abstract class BitStream
 {
     public List<byte> stream;
     private int bitIndex = 0;
+    public int BitIndex
+    {
+        get { return bitIndex; }
+        set
+        {
+            ByteIndex += value / 8;
+            bitIndex = value % 8;
+        }
+    }
+
+    protected int ByteIndex { get; set; }
 
     public BitStream(List<byte> binData)
     {
@@ -13,18 +21,6 @@ class BitStream
         stream = binData;
         ByteIndex = 0;
     }
-
-    public int BitIndex
-    {
-        get { return bitIndex; }
-        set
-        {
-            ByteIndex += value > 7 ? 1 : 0;
-            bitIndex = value % 8;
-        }
-    }
-
-    private int ByteIndex { get; set; }
 
     public void BinDump()
     {
@@ -44,15 +40,15 @@ class BitStream
     {
         System.Console.WriteLine($"Pointer at byte {ByteIndex} - bit {BitIndex}");
     }
+}
 
-    public List<bool> Read(int count, bool debug = false)
+class RBitStream : BitStream
+{
+    public RBitStream(List<byte> binData) : base(binData){}
+
+    public List<bool> ReadBits(int count)
     {
         List<bool> buf = [];
-
-        if (debug)
-        {
-            System.Console.WriteLine($"*** Byte # {ByteIndex} ***");
-        }
 
         for (int i = 0; i < count; i++)
         {
@@ -60,22 +56,17 @@ class BitStream
             bool bitValue = (stream[ByteIndex] & bitReadMask) != 0;
             buf.Add(bitValue);
             BitIndex++;
-
-            if (debug)
-            {
-                System.Console.Write(bitValue);
-                if ((i + 1) % 8 == 0 && i != 0)
-                {
-                    System.Console.Write("\n");
-                    System.Console.WriteLine($"*** Byte # {ByteIndex} ***");
-                }
-            }
         }
 
         return buf;
     }
+}
 
-    public void Write(bool bitValue, int count)
+class WBitStream : BitStream
+{
+    public WBitStream(List<byte> binData) : base(binData) { }
+
+    public void WriteBits(bool bitValue, int count)
     {
         for (int i = 0; i < count; i++)
         {
@@ -90,5 +81,11 @@ class BitStream
             }
             BitIndex++;
         }
+    }
+
+    public void WriteBytes(List<byte> bytes)
+    {
+        stream = [.. stream, .. bytes];
+        BitIndex += (bytes.Count - 1) * 8 + (8 - BitIndex);
     }
 }
