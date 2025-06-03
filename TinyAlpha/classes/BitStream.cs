@@ -44,7 +44,7 @@ abstract class BitStream
 
 class RBitStream : BitStream
 {
-    public RBitStream(List<byte> binData) : base(binData){}
+    public RBitStream(List<byte> binData) : base(binData) { }
 
     public List<bool> ReadBits(int count)
     {
@@ -59,6 +59,17 @@ class RBitStream : BitStream
         }
 
         return buf;
+    }
+
+    public static byte BitsToByte(List<bool> bits)
+    {
+        byte bitCanvas = 0x00;
+        for (int i = 0; i < bits.Count; i++)
+        {
+            byte bitMask = Convert.ToByte(bits[i] ? (128 >> i) : 0);
+            bitCanvas |= bitMask;
+        }
+        return bitCanvas;
     }
 }
 

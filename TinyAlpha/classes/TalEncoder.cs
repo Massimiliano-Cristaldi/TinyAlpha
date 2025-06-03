@@ -5,7 +5,9 @@ class TalEncoder
 {
     Image<Rgba32> image;
     WBitStream head = new([]);
-    WBitStream body = new([]);
+    WBitStream chromaBitfield = new([]);
+    WBitStream countBitfield = new([]);
+    WBitStream colorTypeBitfield = new([]);
     const string imageTestRoot = "../Tests/images/";
 
     public TalEncoder(string inputPath)
@@ -28,47 +30,38 @@ class TalEncoder
         head.WriteBytes(heightBytes);
     }
 
-    private IEnumerable<IGrouping<byte[], byte[]>> GetSortedColors()
+    private void CyclePixels()
     {
-        List<byte[]> pixelBuf = [];
+        Dictionary<uint, int> sortedColors = [];
 
         image.ProcessPixelRows(accessor =>
         {
             for (int h = 0; h < accessor.Height; h++)
             {
                 Span<Rgba32> pixelRow = accessor.GetRowSpan(h);
-                foreach (Rgba32 pixel in pixelRow)
+                for (int w = 0; w < accessor.Width; w++)
                 {
-                    byte[] pixelBytes = [.. BitConverter.GetBytes(pixel.Rgba)];
-                    pixelBuf.Add(pixelBytes);
+                    // Count colors for lookup table order
+                    sortedColors[pixelRow[w].Rgba] = sortedColors.GetValueOrDefault(pixelRow[w].Rgba) + 1;
+                    // Keep track of count for count bitfield
+                    int nextIndex = Math.Min(w + 1, accessor.Width - 1);
+                    uint nextColor = pixelRow[nextIndex].Rgba;
+                    // Check if pixel is colored or transparent -> Only has to be done if it's a single pixel or the end of a count sequence
+                    chromaBitfield.WriteBits(pixelRow[w].A > 0xf0, 1);
+                    // Check if it's a favorite color -> Has to be done later, because we need to iterate all the pixels before we can sort the colors
                 }
             }
         });
 
-        if (pixelBuf.Count() > 256)
-        {
-            throw new TooManyColorsException("Encoding failed: source image has more than 256 colors.");
-        }
-
-        var sortedPixels = pixelBuf
-                          .GroupBy(pixel => pixel)
-                          .OrderByDescending(pixel => pixel.Count());
-
-        return sortedPixels;
-    }
-
-    private void WriteLookupTable()
-    {
-        var sortedPixels = GetSortedColors();
-        byte lookupTableLength = Convert.ToByte(sortedPixels.Count());
     }
 
     public void Encode(string outputPath)
     {
         WriteSignature();
         WriteWidthAndHeight();
-        WriteLookupTable();
 
-        // head.BinDump();
+        CyclePixels();
+
+        head.HexDump();
     }
 }
