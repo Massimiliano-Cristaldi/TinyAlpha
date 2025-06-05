@@ -30,9 +30,10 @@ class TalEncoder
         head.WriteBytes(heightBytes);
     }
 
-    private void CyclePixels()
+    private void WriteLookupTable()
     {
-        Dictionary<uint, int> sortedColors = [];
+        IEnumerable<KeyValuePair<uint, int>> sortedColors;
+        Dictionary<uint, int> colorScores = [];
 
         image.ProcessPixelRows(accessor =>
         {
@@ -41,26 +42,60 @@ class TalEncoder
                 Span<Rgba32> pixelRow = accessor.GetRowSpan(h);
                 for (int w = 0; w < accessor.Width; w++)
                 {
-                    // Count colors for lookup table order
-                    sortedColors[pixelRow[w].Rgba] = sortedColors.GetValueOrDefault(pixelRow[w].Rgba) + 1;
-                    // Keep track of count for count bitfield
-                    int nextIndex = Math.Min(w + 1, accessor.Width - 1);
-                    uint nextColor = pixelRow[nextIndex].Rgba;
-                    // Check if pixel is colored or transparent -> Only has to be done if it's a single pixel or the end of a count sequence
-                    chromaBitfield.WriteBits(pixelRow[w].A > 0xf0, 1);
-                    // Check if it's a favorite color -> Has to be done later, because we need to iterate all the pixels before we can sort the colors
+                    // TODO: handle semitransparent pixels
+                    colorScores[pixelRow[w].Rgba] = colorScores.GetValueOrDefault(pixelRow[w].Rgba) + 1;
+                }
+            }
+
+        });
+
+        // Transparent pixels are not written in the lookup table
+        sortedColors = colorScores.OrderByDescending(color => color.Value).Where(color => color.Key != 0);
+
+        byte lookupTableLength = Convert.ToByte(sortedColors.Count());
+        List<byte> lookUpTable = [lookupTableLength];
+
+        foreach (KeyValuePair<uint, int> color in sortedColors)
+        {
+            lookUpTable = [.. lookUpTable, .. BitConverter.GetBytes(color.Key)];
+        }
+
+        head.WriteBytes(lookUpTable);
+    }
+
+    private void WriteBody()
+    {
+        image.ProcessPixelRows(accessor =>
+        {
+            uint currentColor = 0;
+            Int16 streak = 0;
+
+            for (int h = 0; h < accessor.Height; h++)
+            {
+                Span<Rgba32> pixelRow = accessor.GetRowSpan(h);
+                for (int w = 0; w < accessor.Width; w++)
+                {
+                    if (pixelRow[w].Rgba == currentColor)
+                    {
+                        streak++;
+                    }
+                    else
+                    {
+                        currentColor = pixelRow[w].Rgba;
+                        streak = 1;
+                    }
+
+                    chromaBitfield.WriteBit(pixelRow[w].A > 0xf0);
                 }
             }
         });
-
     }
 
     public void Encode(string outputPath)
     {
         WriteSignature();
         WriteWidthAndHeight();
-
-        CyclePixels();
+        WriteLookupTable();
 
         head.HexDump();
     }

@@ -77,6 +77,20 @@ class WBitStream : BitStream
 {
     public WBitStream(List<byte> binData) : base(binData) { }
 
+    public void WriteBit(bool bitValue)
+    {
+        if (ByteIndex > stream.Count - 1)
+        {
+            int bitWriteMask = bitValue ? 128 : 0;
+            stream.Add(Convert.ToByte(bitWriteMask));
+        }
+        else if (bitValue)
+        {
+            stream[ByteIndex] |= (byte)(128 >> BitIndex);
+        }
+        BitIndex++;        
+    }
+
     public void WriteBits(bool bitValue, int count)
     {
         for (int i = 0; i < count; i++)
