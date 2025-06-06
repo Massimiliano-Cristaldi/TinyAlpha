@@ -108,9 +108,9 @@ class WBitStream : BitStream
         }
     }
 
-    public void WriteBytes(List<byte> bytes)
+    public void WriteBytes(byte[] bytes)
     {
-        stream = [.. stream, .. bytes];
-        BitIndex += (bytes.Count - 1) * 8 + (8 - BitIndex);
+        stream.AddRange(bytes);
+        BitIndex += (bytes.Length - 1) * 8 + (8 - BitIndex);
     }
 }
