@@ -42,10 +42,8 @@ abstract class BitStream
     }
 }
 
-class RBitStream : BitStream
+class RBitStream(List<byte> binData) : BitStream(binData)
 {
-    public RBitStream(List<byte> binData) : base(binData) { }
-
     public List<bool> ReadBits(int count)
     {
         List<bool> buf = [];
@@ -60,52 +58,45 @@ class RBitStream : BitStream
 
         return buf;
     }
-
-    public static byte BitsToByte(List<bool> bits)
-    {
-        byte bitCanvas = 0x00;
-        for (int i = 0; i < bits.Count; i++)
-        {
-            byte bitMask = Convert.ToByte(bits[i] ? (128 >> i) : 0);
-            bitCanvas |= bitMask;
-        }
-        return bitCanvas;
-    }
 }
 
-class WBitStream : BitStream
+class WBitStream(List<byte> binData) : BitStream(binData)
 {
-    public WBitStream(List<byte> binData) : base(binData) { }
-
     public void WriteBit(bool bitValue)
     {
         if (ByteIndex > stream.Count - 1)
         {
             int bitWriteMask = bitValue ? 128 : 0;
-            stream.Add(Convert.ToByte(bitWriteMask));
+            stream.Add((byte)bitWriteMask);
         }
         else if (bitValue)
         {
             stream[ByteIndex] |= (byte)(128 >> BitIndex);
         }
-        BitIndex++;        
+        BitIndex++;
     }
 
-    public void WriteBits(bool bitValue, int count)
+    public void WriteBits(List<bool> bits)
     {
-        for (int i = 0; i < count; i++)
+        foreach (bool bit in bits)
         {
             if (ByteIndex > stream.Count - 1)
             {
-                int bitWriteMask = bitValue ? 128 : 0;
-                stream.Add(Convert.ToByte(bitWriteMask));
+                int bitWriteMask = bit ? 128 : 0;
+                stream.Add((byte)bitWriteMask);
             }
-            else if (bitValue)
+            else if (bit)
             {
                 stream[ByteIndex] |= (byte)(128 >> BitIndex);
             }
             BitIndex++;
         }
+    }
+
+    public void WriteByte(byte byteValue)
+    {
+        stream.Add(byteValue);
+        BitIndex += 8;
     }
 
     public void WriteBytes(byte[] bytes)
