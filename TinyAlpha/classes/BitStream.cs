@@ -1,6 +1,6 @@
 abstract class BitStream
 {
-    public List<byte> stream;
+    public List<byte> stream = [];
     private int bitIndex = 0;
     public int BitIndex
     {
@@ -13,14 +13,6 @@ abstract class BitStream
     }
 
     protected int ByteIndex { get; set; }
-
-    public BitStream(List<byte> binData)
-    {
-        ArgumentNullException.ThrowIfNull(binData);
-
-        stream = binData;
-        ByteIndex = 0;
-    }
 
     public void BinDump()
     {
@@ -42,8 +34,25 @@ abstract class BitStream
     }
 }
 
-class RBitStream(List<byte> binData) : BitStream(binData)
+class RBitStream : BitStream
 {
+    public RBitStream(List<byte> binData)
+    {
+        ArgumentNullException.ThrowIfNull(binData);
+
+        stream = binData;
+        ByteIndex = 0;
+    }
+
+    public bool ReadBit()
+    {
+        int bitReadMask = 128 >> BitIndex;
+        bool bitValue = (stream[ByteIndex] & bitReadMask) != 0;
+        BitIndex++;
+        
+        return bitValue;
+    }
+
     public List<bool> ReadBits(int count)
     {
         List<bool> buf = [];
@@ -60,7 +69,7 @@ class RBitStream(List<byte> binData) : BitStream(binData)
     }
 }
 
-class WBitStream(List<byte> binData) : BitStream(binData)
+class WBitStream : BitStream
 {
     public void WriteBit(bool bitValue)
     {

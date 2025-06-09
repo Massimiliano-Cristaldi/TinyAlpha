@@ -1,3 +1,5 @@
+using System.Data;
+
 static class BitUtils
 {
     public static List<bool> ByteToBits(byte inputByte)

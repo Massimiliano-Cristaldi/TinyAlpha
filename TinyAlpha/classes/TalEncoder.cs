@@ -6,18 +6,18 @@ class TalEncoder
     Image<Rgba32> image;
     string inputPath;
 
-    WBitStream head = new([]);
-    WBitStream chromaBitfield = new([]);
-    WBitStream countBitfield = new([]);
-    WBitStream colorTypeBitfield = new([]);
-    WBitStream body = new([]);
+    WBitStream head = new();
+    WBitStream chromaBitfield = new();
+    WBitStream countBitfield = new();
+    WBitStream colorTypeBitfield = new();
+    WBitStream body = new();
 
     List<uint> sortedColors = [];
     uint[] favoriteColors = [];
     uint currentColor;
     short streak;
 
-    const string imageTestRootPath = "../Tests/images/";
+    const string imageTestRootPath = "../Tests/input/";
 
     public TalEncoder(string _inputPath)
     {
@@ -175,12 +175,41 @@ class TalEncoder
         streak = 1;
     }
 
-    public void Encode(string inputPath)
+    private void WriteFile(string outputPath)
     {
+        List<byte> chromaBitfieldLength = BitConverter.GetBytes(chromaBitfield.stream.Count).Reverse().ToList();
+        List<byte> countBitfieldLength = BitConverter.GetBytes(countBitfield.stream.Count).Reverse().ToList();
+        List<byte> colorTypeBitfieldLength = BitConverter.GetBytes(colorTypeBitfield.stream.Count).Reverse().ToList();
+
+        byte[] bin = new[]
+        {
+            head.stream,
+            chromaBitfieldLength,
+            countBitfieldLength,
+            colorTypeBitfieldLength,
+            chromaBitfield.stream,
+            countBitfield.stream,
+            colorTypeBitfield.stream,
+            body.stream
+        }.SelectMany(bytes => bytes)
+         .ToArray();
+
+        File.WriteAllBytes(outputPath + ".tal", bin);
+    }
+
+    public void Encode(string outputPath, bool overwriteIfExists)
+    {
+        if (File.Exists(outputPath) && !overwriteIfExists)
+        {
+            throw new FileAlreadyExistsException($"File name {outputPath} is already taken. If you wish to overwrite it, pass the encode command a -o flag.");
+        }
+
         WriteSignature();
         WriteWidthAndHeight();
         WriteLookupTable();
         WriteBody();
+
+        WriteFile(outputPath);
 
         System.Console.WriteLine("##### HEAD #####");
         head.BinDump();
