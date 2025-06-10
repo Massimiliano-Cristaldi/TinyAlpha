@@ -4,7 +4,7 @@ using SixLabors.ImageSharp.PixelFormats;
 class TalEncoder
 {
     Image<Rgba32> image;
-    string inputPath;
+    string inputFilename;
 
     WBitStream head = new();
     WBitStream chromaBitfield = new();
@@ -17,16 +17,22 @@ class TalEncoder
     uint currentColor;
     short streak;
 
-    const string imageTestRootPath = "../Tests/input/";
+    const string inputRootPath = "../Tests/input/";
+    const string outputRootPath = "../Tests/output/";
 
-    public TalEncoder(string _inputPath)
+    public TalEncoder(string _inputFilename)
     {
-        image = Image.Load<Rgba32>(imageTestRootPath + _inputPath);
-        inputPath = _inputPath;
+        if (!File.Exists(inputRootPath + inputFilename))
+        {
+            throw new FileNotFoundException($"File not found at path {inputRootPath + inputFilename}.");
+        }
+
+        image = Image.Load<Rgba32>(inputRootPath + _inputFilename);
+        inputFilename = _inputFilename;
         currentColor = GetFirstColor();
     }
 
-    private void WriteSignature()
+    private void WriteSignatureAndVersion()
     {
         int[] magicNumber = [8, 9, 3, 0, 0, 1];
         byte[] signature = magicNumber.Select(n => (byte)n).ToArray();
@@ -61,7 +67,7 @@ class TalEncoder
 
         if (colorScores.Count > 256)
         {
-            throw new TooManyColorsException($"Failed encoding {inputPath}: source image cannot have more than 256 colors.");
+            throw new TooManyColorsException($"Failed encoding {inputFilename}: source image cannot have more than 256 colors.");
         }
 
         sortedColors = colorScores
@@ -175,7 +181,7 @@ class TalEncoder
         streak = 1;
     }
 
-    private void WriteFile(string outputPath)
+    private void WriteFile(string outputFilename)
     {
         List<byte> chromaBitfieldLength = BitConverter.GetBytes(chromaBitfield.stream.Count).Reverse().ToList();
         List<byte> countBitfieldLength = BitConverter.GetBytes(countBitfield.stream.Count).Reverse().ToList();
@@ -194,22 +200,22 @@ class TalEncoder
         }.SelectMany(bytes => bytes)
          .ToArray();
 
-        File.WriteAllBytes(outputPath + ".tal", bin);
+        File.WriteAllBytes(outputRootPath + outputFilename, bin);
     }
 
-    public void Encode(string outputPath, bool overwriteIfExists)
+    public void Encode(string outputFilename, bool overwriteIfExists)
     {
-        if (File.Exists(outputPath) && !overwriteIfExists)
+        if (File.Exists(outputFilename) && !overwriteIfExists)
         {
-            throw new FileAlreadyExistsException($"File name {outputPath} is already taken. If you wish to overwrite it, pass the encode command a -o flag.");
+            throw new FileAlreadyExistsException($"File name {outputFilename} is already taken. If you wish to overwrite it, pass the encode command a -o flag.");
         }
 
-        WriteSignature();
+        WriteSignatureAndVersion();
         WriteWidthAndHeight();
         WriteLookupTable();
         WriteBody();
 
-        WriteFile(outputPath);
+        WriteFile(outputFilename);
 
         System.Console.WriteLine("##### HEAD #####");
         head.BinDump();

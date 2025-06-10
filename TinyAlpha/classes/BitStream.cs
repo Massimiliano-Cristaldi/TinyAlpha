@@ -1,6 +1,5 @@
 abstract class BitStream
 {
-    public List<byte> stream = [];
     private int bitIndex = 0;
     public int BitIndex
     {
@@ -13,30 +12,13 @@ abstract class BitStream
     }
 
     protected int ByteIndex { get; set; }
-
-    public void BinDump()
-    {
-        string binaryDump = string.Join(" ", stream.Select(b => Convert.ToString(b, 2).PadLeft(8, '0')));
-        System.Console.WriteLine(binaryDump);
-        CoordsDump();
-    }
-
-    public void HexDump()
-    {
-        string hexDump = string.Join(" ", stream.Select(h => Convert.ToString(h, 16).PadLeft(2, '0')));
-        System.Console.WriteLine(hexDump);
-        CoordsDump();
-    }
-
-    public void CoordsDump()
-    {
-        System.Console.WriteLine($"Pointer at byte {ByteIndex} - bit {BitIndex}");
-    }
 }
 
 class RBitStream : BitStream
 {
-    public RBitStream(List<byte> binData)
+    public byte[] stream = [];
+
+    public RBitStream(byte[] binData)
     {
         ArgumentNullException.ThrowIfNull(binData);
 
@@ -49,7 +31,7 @@ class RBitStream : BitStream
         int bitReadMask = 128 >> BitIndex;
         bool bitValue = (stream[ByteIndex] & bitReadMask) != 0;
         BitIndex++;
-        
+
         return bitValue;
     }
 
@@ -67,10 +49,29 @@ class RBitStream : BitStream
 
         return buf;
     }
+
+    public void BinDump(IEnumerable<byte> stream)
+    {
+        string binaryDump = string.Join(" ", stream.Select(b => Convert.ToString(b, 2).PadLeft(8, '0')));
+        System.Console.WriteLine(binaryDump);
+    }
+
+    public void HexDump(IEnumerable<byte> stream)
+    {
+        string hexDump = string.Join(" ", stream.Select(h => Convert.ToString(h, 16).PadLeft(2, '0')));
+        System.Console.WriteLine(hexDump);
+    }
+
+    public void CoordsDump(int byteIndex, int bitIndex)
+    {
+        System.Console.WriteLine($"Pointer at byte {byteIndex} - bit {bitIndex}");
+    }
 }
 
 class WBitStream : BitStream
 {
+    public List<byte> stream = [];
+
     public void WriteBit(bool bitValue)
     {
         if (ByteIndex > stream.Count - 1)
@@ -112,5 +113,22 @@ class WBitStream : BitStream
     {
         stream.AddRange(bytes);
         BitIndex += (bytes.Length - 1) * 8 + (8 - BitIndex);
+    }
+
+        public void BinDump()
+    {
+        string binaryDump = string.Join(" ", stream.Select(b => Convert.ToString(b, 2).PadLeft(8, '0')));
+        System.Console.WriteLine(binaryDump);
+    }
+
+    public void HexDump()
+    {
+        string hexDump = string.Join(" ", stream.Select(h => Convert.ToString(h, 16).PadLeft(2, '0')));
+        System.Console.WriteLine(hexDump);
+    }
+
+    public void CoordsDump()
+    {
+        System.Console.WriteLine($"Pointer at byte {ByteIndex} - bit {BitIndex}");
     }
 }
