@@ -183,20 +183,20 @@ class TalEncoder
 
     private void WriteFile(string outputFilename)
     {
-        List<byte> chromaBitfieldLength = BitConverter.GetBytes(chromaBitfield.stream.Count).Reverse().ToList();
-        List<byte> countBitfieldLength = BitConverter.GetBytes(countBitfield.stream.Count).Reverse().ToList();
-        List<byte> colorTypeBitfieldLength = BitConverter.GetBytes(colorTypeBitfield.stream.Count).Reverse().ToList();
+        List<byte> chromaBitfieldLength = BitConverter.GetBytes(chromaBitfield.Stream.Count).Reverse().ToList();
+        List<byte> countBitfieldLength = BitConverter.GetBytes(countBitfield.Stream.Count).Reverse().ToList();
+        List<byte> colorTypeBitfieldLength = BitConverter.GetBytes(colorTypeBitfield.Stream.Count).Reverse().ToList();
 
         byte[] bin = new[]
         {
-            head.stream,
+            head.Stream,
             chromaBitfieldLength,
             countBitfieldLength,
             colorTypeBitfieldLength,
-            chromaBitfield.stream,
-            countBitfield.stream,
-            colorTypeBitfield.stream,
-            body.stream
+            chromaBitfield.Stream,
+            countBitfield.Stream,
+            colorTypeBitfield.Stream,
+            body.Stream
         }.SelectMany(bytes => bytes)
          .ToArray();
 
@@ -218,21 +218,21 @@ class TalEncoder
         WriteFile(outputFilename);
 
         System.Console.WriteLine("##### HEAD #####");
-        head.BinDump();
+        BitUtils.BinDump(head.Stream);
         System.Console.WriteLine("##### CHROMA BITFIELD #####");
-        chromaBitfield.BinDump();
+        BitUtils.BinDump(chromaBitfield.Stream);
         // Expected: 11010111 10101111
         // Got: 11010111 10101111
         System.Console.WriteLine("##### COUNT BITFIELD #####");
-        countBitfield.BinDump();
+        BitUtils.BinDump(countBitfield.Stream);
         // Expected: 11101101 11010011
         // Got: 11101101 11010011
         System.Console.WriteLine("##### COLOR TYPE BITFIELD #####");
-        colorTypeBitfield.BinDump();
+        BitUtils.BinDump(colorTypeBitfield.Stream);
         // Expected: 11111111 11110000
         // Got: 11111111 11110000
         System.Console.WriteLine("##### BODY #####");
-        body.BinDump();
+        BitUtils.BinDump(body.Stream);
         // Expected: 00000111 0001 00001001 0000 00000101 0000 00000010 00000100 0001 0000 00000011 0001 00001000 0000 00000010 0000 00000101 0001 0000 00000110 0001 00001000 0000
         // Got:      00000111 0001 00001001 0000 00000101 0000 00000010 00000100 0001 0000 00000011 0001 00001000 0000 00000010 0000 00000101 0001 0000 00000110 0001 00001000 0000
     }

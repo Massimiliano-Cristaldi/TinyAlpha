@@ -1,7 +1,9 @@
+using System.Buffers.Binary;
+using SixLabors.ImageSharp;
+
 class TalDecoder
 {
     RBitStream source;
-
     const string inputRootPath = "../Tests/input/";
     const string outputRootPath = "../Tests/output/";
 
@@ -13,26 +15,49 @@ class TalDecoder
         }
 
         byte[] sourceBytes = File.ReadAllBytes(inputRootPath + inputFilename);
+
+        if (sourceBytes.Length < 19)
+        {
+            throw new ImageSizeException("Unsupported image size. A .tal image cannot possibly be smaller than 19 bytes.");
+        }
+
         source = new(sourceBytes);
     }
 
-    public (int, int, int, int, int) GetOffsets()
+    public (ArraySegment<byte>, ArraySegment<byte>, ArraySegment<byte>, ArraySegment<byte>, ArraySegment<byte>) GetSegments()
     {
         int lookUpTableOffset = 14;
-        int lookupTableLength = source.stream[lookUpTableOffset];
+        int lookupTableLength = source.Stream[lookUpTableOffset];
 
-        int chromaBitfieldLength = source.stream[lookUpTableOffset + lookupTableLength];
-        int chromaBitfieldOffset = source.stream[lookUpTableOffset + lookupTableLength + 2];
+        int chromaBitfieldLength = source.Stream[lookUpTableOffset + lookupTableLength];
+        int chromaBitfieldOffset = lookUpTableOffset + lookupTableLength + 3;
 
-        int countBitfieldLength = source.stream[lookUpTableOffset + lookupTableLength + 1];
-        int countBitfieldOffset = source.stream[chromaBitfieldOffset + chromaBitfieldLength];
+        int countBitfieldLength = source.Stream[lookUpTableOffset + lookupTableLength + 1];
+        int countBitfieldOffset = chromaBitfieldOffset + chromaBitfieldLength;
 
-        int colorTypeBitfieldLength = source.stream[lookUpTableOffset + lookupTableLength + 2];
-        int colorTypeBitfieldOffset = source.stream[countBitfieldOffset + countBitfieldLength];
+        int colorTypeBitfieldLength = source.Stream[lookUpTableOffset + lookupTableLength + 2];
+        int colorTypeBitfieldOffset = countBitfieldOffset + countBitfieldLength;
 
-        int bodyOffset = source.stream[colorTypeBitfieldOffset + colorTypeBitfieldLength];
+        int bodyOffset = colorTypeBitfieldOffset + colorTypeBitfieldLength;
+        int bodyLength = source.Stream.Length - bodyOffset - 1;
 
-        return (lookUpTableOffset, chromaBitfieldOffset, countBitfieldOffset, colorTypeBitfieldOffset, bodyOffset);
+        ArraySegment<byte> lookupTable = new(source.Stream, lookUpTableOffset, lookupTableLength);
+        ArraySegment<byte> chromaBitfield = new(source.Stream, chromaBitfieldOffset, chromaBitfieldLength);
+        ArraySegment<byte> countBitfield = new(source.Stream, countBitfieldOffset, countBitfieldLength);
+        ArraySegment<byte> colorTypeBitfield = new(source.Stream, colorTypeBitfieldOffset, colorTypeBitfieldLength);
+        ArraySegment<byte> body = new(source.Stream, bodyOffset, bodyLength);
+
+        return (lookupTable, chromaBitfield, countBitfield, colorTypeBitfield, body);
+    }
+
+    public uint[] GetColors(byte[] lookupTable)
+    {
+        List<uint> colors = [];
+        for (int i = 0; i < lookupTable.Length; i += 4)
+        {
+            colors.Add(BinaryPrimitives.ReadUInt32LittleEndian(lookupTable.AsSpan(i, 4)));
+        }
+        return colors.ToArray();
     }
 
     public void Decode(string outputFilename, bool overwriteIfExists)
@@ -42,25 +67,39 @@ class TalDecoder
             throw new FileAlreadyExistsException($"File name {outputFilename} is already taken. If you wish to overwrite it, pass the encode command a -o flag.");
         }
 
-        (
-            int lookUpTableOffset,
-            int chromaBitfieldOffset,
-            int countBitfieldOffset,
-            int colorTypeBitfieldOffset,
-            int bodyffset
-        ) = GetOffsets();
+        ArraySegment<byte> signature = new(source.Stream, 0, 3);
+        ArraySegment<byte> version = new(source.Stream, 3, 3);
 
-        Span<byte> signature = new(source.stream, 0, 2);
-        Span<byte> version = new(source.stream, 3, 5);
+        ArraySegment<byte> width = new(source.Stream, 6, 4);
+        ArraySegment<byte> height = new(source.Stream, 10, 4);
 
-        if (signature != BitConverter.GetBytes(0x080903))
+        if (!signature.SequenceEqual(new byte[] { 0x08, 0x09, 0x03 }))
         {
-            throw new UnrecognizedSignatureException("Decoder encountered an unexpected signature. Input file might be the wrong type or corrupted.");
+            throw new UnrecognizedSignatureException("The decoder encountered an unexpected signature. Input file might be the wrong type or corrupted.");
         }
 
-        if (version != BitConverter.GetBytes(0x000001))
+        if (!version.SequenceEqual(new byte[] { 0x00, 0x00, 0x01 }))
         {
-            throw new VersionMismatchException("Decoder encountered an unexpected signature. Input file might have been decoded with a different encoder version.");
+            throw new VersionMismatchException("The decoder encountered an unexpected signature. Input file might have been decoded with a different encoder version.");
+        }
+
+        if (BinaryPrimitives.ReadInt32BigEndian(width) > 8192 || BinaryPrimitives.ReadInt32BigEndian(height) > 8192)
+        {
+            throw new ImageSizeException("Unsupported image size. Width and height must not exceed 8192px each.");
+        }
+
+        (
+            ArraySegment<byte> lookUpTable,
+            ArraySegment<byte> chromaBitfield,
+            ArraySegment<byte> countBitfield,
+            ArraySegment<byte> colorTypeBitfield,
+            ArraySegment<byte> body
+        ) = GetSegments();
+
+        uint[] colors = GetColors(lookUpTable.ToArray());
+        foreach (uint color in colors)
+        {
+            System.Console.WriteLine(color);
         }
     }    
 }

@@ -1,5 +1,3 @@
-using System.Data;
-
 static class BitUtils
 {
     public static List<bool> ByteToBits(byte inputByte)
@@ -25,5 +23,17 @@ static class BitUtils
             bitCanvas |= bitMask;
         }
         return bitCanvas;
+    }
+
+    public static void BinDump(IEnumerable<byte> bytes)
+    {
+        string binaryDump = string.Join(" ", bytes.Select(b => Convert.ToString(b, 2).PadLeft(8, '0')));
+        System.Console.WriteLine(binaryDump);
+    }
+
+    public static void HexDump(IEnumerable<byte> bytes)
+    {
+        string hexDump = string.Join(" ", bytes.Select(h => Convert.ToString(h, 16).PadLeft(2, '0')));
+        System.Console.WriteLine(hexDump);
     }
 }
