@@ -21,16 +21,14 @@ abstract class BitStream
 
 class RBitStream : BitStream
 {
-    public byte[] Stream
+    public ArraySegment<byte> Stream
     {
         get;
         private set;
     }
 
-    public RBitStream(byte[] binData)
+    public RBitStream(ArraySegment<byte> binData)
     {
-        ArgumentNullException.ThrowIfNull(binData);
-
         Stream = binData;
         ByteIndex = 0;
     }
