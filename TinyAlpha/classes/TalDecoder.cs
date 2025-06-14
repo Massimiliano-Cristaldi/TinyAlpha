@@ -10,9 +10,9 @@ class TalDecoder
     RBitStream countBitfield;
     RBitStream colorTypeBitfield;
     RBitStream body;
-    uint[] colors;
+    uint[] tableValues;
     uint[] favoriteColors;
-    List<Rgba32> rgbaValues = [];
+    List<Rgba32> bitmap = [];
     const string inputRootPath = "../Tests/tal/";
     const string outputRootPath = "../Tests/png/";
 
@@ -68,10 +68,18 @@ class TalDecoder
 
     private void ReadStream()
     {
-        if (countBitfield.ReadBit())
-        {
-            int count = BitUtils.BitsToByte(body.ReadBits(8));
-        }
+        int bitsForCount = countBitfield.ReadBit() ? 8 : 0;
+        int bitsForIndex = chromaBitfield.ReadBit() ? 0 : (colorTypeBitfield.ReadBit() ? 4 : 8);
+
+        int count = bitsForCount == 0 ? 1 : BitUtils.BitsToByte(body.ReadBits(8));
+        int index = BitUtils.BitsToByte(chromaBitfield.ReadBits(bitsForIndex));
+
+        uint colorValue = index > 0 ? tableValues[index] : 0;
+
+        bitmap.AddRange(Enumerable.Repeat(new Rgba32(colorValue), count));
+
+        // TODO: add bounds check
+        ReadStream();
     }
 
     public void Decode(string outputFilename, bool overwriteIfExists)
@@ -104,8 +112,8 @@ class TalDecoder
 
         GetSegments();
 
-        colors = GetColors();
-        favoriteColors = colors.Take(16).ToArray();
+        tableValues = GetColors();
+        favoriteColors = tableValues.Take(16).ToArray();
 
         ReadStream();
     }    

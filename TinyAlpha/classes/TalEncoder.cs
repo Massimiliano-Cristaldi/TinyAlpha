@@ -58,7 +58,6 @@ class TalEncoder
                 Span<Rgba32> pixelRow = accessor.GetRowSpan(h);
                 for (int w = 0; w < accessor.Width; w++)
                 {
-                    // TODO: handle semitransparent pixels
                     colorScores[pixelRow[w].Rgba] = colorScores.GetValueOrDefault(pixelRow[w].Rgba) + 1;
                 }
             }

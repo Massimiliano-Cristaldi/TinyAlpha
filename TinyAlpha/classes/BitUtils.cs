@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 static class BitUtils
 {
     public static List<bool> ByteToBits(byte inputByte)
