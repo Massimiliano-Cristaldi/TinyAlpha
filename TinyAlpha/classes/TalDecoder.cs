@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 class TalDecoder
@@ -12,7 +11,9 @@ class TalDecoder
     RBitStream body;
     uint[] tableValues;
     uint[] favoriteColors;
-    List<Rgba32> bitmap = [];
+    int streakCount;
+    int streakIndex = 0;
+    List<uint> bitmap = [];
     const string inputRootPath = "../Tests/tal/";
     const string outputRootPath = "../Tests/png/";
 
@@ -33,17 +34,20 @@ class TalDecoder
 
     private void GetSegments()
     {
-        int lookUpTableOffset = 15;
-        int lookupTableLength = source[lookUpTableOffset - 1] * 4; // 8
+        int lookUpTableOffset = 13;
+        int lookupTableLength = source[lookUpTableOffset - 1] * 4;
+        int fieldLengthsOffset = lookUpTableOffset + lookupTableLength;
 
-        int chromaBitfieldLength = BinaryPrimitives.ReadInt32BigEndian(source.AsSpan(lookUpTableOffset + lookupTableLength, 4));
-        int chromaBitfieldOffset = lookUpTableOffset + lookupTableLength + 12;
+        int chromaBitfieldLength = BinaryPrimitives.ReadInt32BigEndian(source.AsSpan(fieldLengthsOffset, 4));
+        int chromaBitfieldOffset = fieldLengthsOffset + 16;
 
-        int countBitfieldLength = BinaryPrimitives.ReadInt32BigEndian(source.AsSpan(lookUpTableOffset + lookupTableLength + 4, 4));
+        int countBitfieldLength = BinaryPrimitives.ReadInt32BigEndian(source.AsSpan(fieldLengthsOffset + 4, 4));
         int countBitfieldOffset = chromaBitfieldOffset + chromaBitfieldLength;
 
-        int colorTypeBitfieldLength = BinaryPrimitives.ReadInt32BigEndian(source.AsSpan(lookUpTableOffset + lookupTableLength + 8, 4));
+        int colorTypeBitfieldLength = BinaryPrimitives.ReadInt32BigEndian(source.AsSpan(fieldLengthsOffset + 8, 4));
         int colorTypeBitfieldOffset = countBitfieldOffset + countBitfieldLength;
+
+        streakCount = BinaryPrimitives.ReadInt32BigEndian(source.AsSpan(fieldLengthsOffset + 12, 4));
 
         int bodyOffset = colorTypeBitfieldOffset + colorTypeBitfieldLength;
         int bodyLength = source.Length - bodyOffset;
@@ -68,18 +72,25 @@ class TalDecoder
 
     private void ReadStream()
     {
-        int bitsForCount = countBitfield.ReadBit() ? 8 : 0;
-        int bitsForIndex = chromaBitfield.ReadBit() ? 0 : (colorTypeBitfield.ReadBit() ? 4 : 8);
+        bool isStreak = countBitfield.ReadBit();
+        // System.Console.WriteLine($"Is streak: {isStreak}");
+        int bitsForIndex = chromaBitfield.ReadBit() ? (colorTypeBitfield.ReadBit() ? 4 : 8) : 0;
+        // System.Console.WriteLine($"Bits for index: {bitsForIndex}");
 
-        int count = bitsForCount == 0 ? 1 : BitUtils.BitsToByte(body.ReadBits(8));
-        int index = BitUtils.BitsToByte(chromaBitfield.ReadBits(bitsForIndex));
+        int count = isStreak ? BitUtils.BitsToByte(body.ReadBits(8)) : 1;
+        int index = BitUtils.BitsToByte(body.ReadBits(bitsForIndex));
+        // System.Console.WriteLine($"Index: {index}");
 
-        uint colorValue = index > 0 ? tableValues[index] : 0;
+        uint colorValue = bitsForIndex > 0 ? tableValues[index] : 0;
+        // System.Console.WriteLine($"Color value: {colorValue}");
 
-        bitmap.AddRange(Enumerable.Repeat(new Rgba32(colorValue), count));
+        bitmap.AddRange(Enumerable.Repeat(colorValue, count));
 
-        // TODO: add bounds check
-        ReadStream();
+        streakIndex++;
+        if (streakIndex < streakCount)
+        {
+            ReadStream();
+        }
     }
 
     public void Decode(string outputFilename, bool overwriteIfExists)
@@ -90,20 +101,20 @@ class TalDecoder
         }
 
         ArraySegment<byte> signature = new(source, 0, 3);
-        ArraySegment<byte> version = new(source, 3, 3);
+        ArraySegment<byte> version = new(source, 3, 1);
 
         if (!signature.SequenceEqual(new byte[] { 0x08, 0x09, 0x03 }))
         {
             throw new UnrecognizedSignatureException("The decoder encountered an unexpected signature. Input file might be the wrong type or corrupted.");
         }
 
-        if (!version.SequenceEqual(new byte[] { 0x00, 0x00, 0x01 }))
+        if (!version.SequenceEqual(new byte[] { 0x01 }))
         {
             throw new VersionMismatchException("The decoder encountered an unexpected signature. Input file might have been decoded with a different encoder version.");
         }
 
-        int width = BinaryPrimitives.ReadInt32BigEndian(new ArraySegment<byte>(source, 6, 4));
-        int height = BinaryPrimitives.ReadInt32BigEndian(new ArraySegment<byte>(source, 10, 4));
+        int width = BinaryPrimitives.ReadInt32BigEndian(new ArraySegment<byte>(source, 4, 4));
+        int height = BinaryPrimitives.ReadInt32BigEndian(new ArraySegment<byte>(source, 8, 4));
 
         if (width > 8192 || height > 8192)
         {
@@ -116,5 +127,10 @@ class TalDecoder
         favoriteColors = tableValues.Take(16).ToArray();
 
         ReadStream();
+
+        foreach (uint color in bitmap)
+        {
+            System.Console.WriteLine(color);
+        }
     }    
 }

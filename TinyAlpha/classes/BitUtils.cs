@@ -22,6 +22,7 @@ static class BitUtils
             byte bitMask = (byte)(inputBits[i] ? (128 >> i) : 0);
             bitCanvas |= bitMask;
         }
+        bitCanvas >>= 8 - inputBits.Count;
         return bitCanvas;
     }
 
