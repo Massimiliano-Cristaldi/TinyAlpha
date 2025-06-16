@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 class TalDecoder
@@ -12,7 +13,6 @@ class TalDecoder
     uint[] tableValues;
     uint[] favoriteColors;
     int streakCount;
-    int streakIndex = 0;
     List<uint> bitmap = [];
     const string inputRootPath = "../Tests/tal/";
     const string outputRootPath = "../Tests/png/";
@@ -70,27 +70,36 @@ class TalDecoder
         return colors.ToArray();
     }
 
-    private void ReadStream()
+    private void ProcessStreak()
     {
         bool isStreak = countBitfield.ReadBit();
-        // System.Console.WriteLine($"Is streak: {isStreak}");
         int bitsForIndex = chromaBitfield.ReadBit() ? (colorTypeBitfield.ReadBit() ? 4 : 8) : 0;
-        // System.Console.WriteLine($"Bits for index: {bitsForIndex}");
 
         int count = isStreak ? BitUtils.BitsToByte(body.ReadBits(8)) : 1;
         int index = BitUtils.BitsToByte(body.ReadBits(bitsForIndex));
-        // System.Console.WriteLine($"Index: {index}");
 
         uint colorValue = bitsForIndex > 0 ? tableValues[index] : 0;
-        // System.Console.WriteLine($"Color value: {colorValue}");
 
         bitmap.AddRange(Enumerable.Repeat(colorValue, count));
+    }
 
-        streakIndex++;
-        if (streakIndex < streakCount)
+    private void WriteFile(string outputFilename)
+    {
+        Image<Rgba32> image = new Image<Rgba32>(8, 8);
+
+        image.ProcessPixelRows(accessor =>
         {
-            ReadStream();
-        }
+            for (int h = 0; h < accessor.Height; h++)
+            {
+                Span<Rgba32> pixelRow = accessor.GetRowSpan(h);
+                for (int w = 0; w < accessor.Width; w++)
+                {
+                    pixelRow[w] = new Rgba32(bitmap[h * accessor.Width + w]);
+                }
+            }
+        });
+
+        image.Save(outputRootPath + outputFilename);
     }
 
     public void Decode(string outputFilename, bool overwriteIfExists)
@@ -126,11 +135,11 @@ class TalDecoder
         tableValues = GetColors();
         favoriteColors = tableValues.Take(16).ToArray();
 
-        ReadStream();
-
-        foreach (uint color in bitmap)
+        for (int i = 0; i < streakCount; i++)
         {
-            System.Console.WriteLine(color);
+            ProcessStreak();
         }
+
+        WriteFile(outputFilename);
     }    
 }
