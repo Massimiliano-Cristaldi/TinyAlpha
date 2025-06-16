@@ -1,35 +1,44 @@
 using System.Buffers.Binary;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System.Text.RegularExpressions;
 
 class TalDecoder
 {
+    string inputFilename;
+
     byte[] source;
     RBitStream lookupTable;
     RBitStream chromaBitfield;
     RBitStream countBitfield;
     RBitStream colorTypeBitfield;
     RBitStream body;
+
     uint[] tableValues;
-    uint[] favoriteColors;
     int streakCount;
+
     List<uint> bitmap = [];
+    int width;
+    int height;
+
     const string inputRootPath = "../Tests/tal/";
     const string outputRootPath = "../Tests/png/";
 
-    public TalDecoder(string inputFilename)
+    public TalDecoder(string _inputFilename)
     {
-        if (!File.Exists(inputRootPath + inputFilename))
+        if (!File.Exists(inputRootPath + _inputFilename))
         {
-            throw new FileNotFoundException($"File not found at path {inputRootPath + inputFilename}.");
+            throw new FileNotFoundException($"File not found at path {inputRootPath + _inputFilename}.");
         }
 
-        source = File.ReadAllBytes(inputRootPath + inputFilename);
+        source = File.ReadAllBytes(inputRootPath + _inputFilename);
 
         if (source.Length < 19)
         {
             throw new ImageSizeException("Unsupported image size. A .tal image cannot possibly be smaller than 19 bytes.");
         }
+
+        inputFilename = _inputFilename;
     }
 
     private void GetSegments()
@@ -85,7 +94,7 @@ class TalDecoder
 
     private void WriteFile(string outputFilename)
     {
-        Image<Rgba32> image = new Image<Rgba32>(8, 8);
+        Image<Rgba32> image = new Image<Rgba32>(width, height);
 
         image.ProcessPixelRows(accessor =>
         {
@@ -102,8 +111,11 @@ class TalDecoder
         image.Save(outputRootPath + outputFilename);
     }
 
-    public void Decode(string outputFilename, bool overwriteIfExists)
+    public void Decode(bool overwriteIfExists)
     {
+        Regex fileExt = new Regex(@"\.tal");
+        string outputFilename = fileExt.Replace(inputFilename, ".png");
+
         if (File.Exists(outputFilename) && !overwriteIfExists)
         {
             throw new FileAlreadyExistsException($"File name {outputFilename} is already taken. If you wish to overwrite it, pass the encode command a -o flag.");
@@ -122,8 +134,8 @@ class TalDecoder
             throw new VersionMismatchException("The decoder encountered an unexpected signature. Input file might have been decoded with a different encoder version.");
         }
 
-        int width = BinaryPrimitives.ReadInt32BigEndian(new ArraySegment<byte>(source, 4, 4));
-        int height = BinaryPrimitives.ReadInt32BigEndian(new ArraySegment<byte>(source, 8, 4));
+        width = BinaryPrimitives.ReadInt32BigEndian(new ArraySegment<byte>(source, 4, 4));
+        height = BinaryPrimitives.ReadInt32BigEndian(new ArraySegment<byte>(source, 8, 4));
 
         if (width > 8192 || height > 8192)
         {
@@ -133,7 +145,6 @@ class TalDecoder
         GetSegments();
 
         tableValues = GetColors();
-        favoriteColors = tableValues.Take(16).ToArray();
 
         for (int i = 0; i < streakCount; i++)
         {
@@ -141,5 +152,7 @@ class TalDecoder
         }
 
         WriteFile(outputFilename);
-    }    
+
+        System.Console.WriteLine($"File {outputFilename} was saved successfully.");
+    }
 }

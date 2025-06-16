@@ -1,5 +1,6 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System.Text.RegularExpressions;
 
 class TalEncoder
 {
@@ -31,7 +32,6 @@ class TalEncoder
         image = Image.Load<Rgba32>(inputRootPath + _inputFilename);
         inputFilename = _inputFilename;
         currentColor = GetFirstColor();
-        System.Console.WriteLine(currentColor);
     }
 
         private uint GetFirstColor()
@@ -185,13 +185,10 @@ class TalEncoder
 
     private void WriteFile(string outputFilename)
     {
-        // Reverse converts to Big Endian
         List<byte> chromaBitfieldLength = BitConverter.GetBytes(chromaBitfield.Stream.Count).Reverse().ToList();
         List<byte> countBitfieldLength = BitConverter.GetBytes(countBitfield.Stream.Count).Reverse().ToList();
         List<byte> colorTypeBitfieldLength = BitConverter.GetBytes(colorTypeBitfield.Stream.Count).Reverse().ToList();
         List<byte> streakCountBytes = BitConverter.GetBytes(streakCount).Reverse().ToList();
-        System.Console.WriteLine("Streak count bytes:");
-        BitUtils.BinDump(streakCountBytes);
 
         byte[] buffer = new[]
         {
@@ -210,8 +207,11 @@ class TalEncoder
         File.WriteAllBytes(outputRootPath + outputFilename, buffer);
     }
 
-    public void Encode(string outputFilename, bool overwriteIfExists)
+    public void Encode(bool overwriteIfExists)
     {
+        Regex fileExt = new Regex(@"\..{2,}$");
+        string outputFilename = fileExt.Replace(inputFilename, ".tal");
+
         if (File.Exists(inputRootPath + outputFilename) && !overwriteIfExists)
         {
             throw new FileAlreadyExistsException($"File name {outputFilename} is already taken. If you wish to overwrite it, pass the encode command a -o flag.");
@@ -225,24 +225,5 @@ class TalEncoder
         WriteFile(outputFilename);
 
         System.Console.WriteLine($"File {outputFilename} was saved successfully.");
-
-        System.Console.WriteLine("##### HEAD #####");
-        BitUtils.BinDump(head.Stream);
-        System.Console.WriteLine("##### CHROMA BITFIELD #####");
-        BitUtils.BinDump(chromaBitfield.Stream);
-        // Expected: 11010111 10101111
-        // Got: 11010111 10101111
-        System.Console.WriteLine("##### COUNT BITFIELD #####");
-        BitUtils.BinDump(countBitfield.Stream);
-        // Expected: 11101101 11010011
-        // Got: 11101101 11010011
-        System.Console.WriteLine("##### COLOR TYPE BITFIELD #####");
-        BitUtils.BinDump(colorTypeBitfield.Stream);
-        // Expected: 11111111 11110000
-        // Got: 11111111 11110000
-        System.Console.WriteLine("##### BODY #####");
-        BitUtils.BinDump(body.Stream);
-        // Expected: 00000111 0001 00001001 0000 00000101 0000 00000010 00000100 0001 0000 00000011 0001 00001000 0000 00000010 0000 00000101 0001 0000 00000110 0001 00001000 0000
-        // Got:      00000111 0001 00001001 0000 00000101 0000 00000010 00000100 0001 0000 00000011 0001 00001000 0000 00000010 0000 00000101 0001 0000 00000110 0001 00001000 0000
     }
 }

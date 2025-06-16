@@ -22,3 +22,8 @@ class ImageSizeException : Exception
 {
     public ImageSizeException(string message) : base(message) { }
 }
+
+class InvalidPathException : Exception
+{
+    public InvalidPathException(string message) : base(message) { }
+}
